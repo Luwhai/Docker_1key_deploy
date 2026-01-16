@@ -16,7 +16,7 @@ https://github.com/docker/compose/releases/download/v5.0.0/docker-compose-window
 ```
 
 ## 4、运行画面
-插入图片
+<img src="images.png" />
 
 
 ## 5、常见问题
