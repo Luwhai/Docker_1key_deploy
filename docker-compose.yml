@@ -1,0 +1,161 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-container
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: appdb
+      MYSQL_USER: lulu
+      MYSQL_PASSWORD: 123456
+      TZ: Asia/Shanghai
+    command: --lower_case_table_names=1
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 5
+  
+  # Mysql 管理
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin-container
+    restart: always
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 100M
+    ports:
+      - "8088:80"
+    depends_on:
+      - mysql
+    networks:
+      - app-network
+      
+  # Redis 缓存
+  redis:
+    image: redis:alpine
+    container_name: redis-container
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server  /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 5s
+      retries: 5
+
+  # Spring Boot 后端应用
+  spring-app-backend:
+    build: ./spring-boot-backend
+    container_name: spring-app-backend-container
+    restart: always
+    depends_on:
+      - mysql    
+      - redis        
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: lulu
+      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: 123456
+      JAVA_OPTS: "-Xmx512m -Xms256m "
+    ports:
+      - "8080:20400"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  
+  # Spring Boot 前端应用
+  spring-app-front:
+    build: ./spring-boot-front
+    container_name: spring-app-front-container
+    restart: always
+    depends_on:
+      - mysql    
+      - redis        
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: lulu
+      SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PASSWORD: 123456
+      JAVA_OPTS: "-Xmx512m -Xms256m "
+    ports:
+      - "8081:20410"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+  # Nginx admin
+  nginx-admin:
+    image: nginx:latest
+    container_name: nginx-container-admin
+    restart: always
+    depends_on:
+      - spring-app-backend
+    ports:
+      - "8011:80"
+    volumes:
+      - ./admin/nginx.conf:/etc/nginx/nginx.conf
+      - ./admin/dist:/usr/share/nginx/html
+    networks:
+      - app-network
+  
+  # Nginx app
+  nginx-app:
+    image: nginx:latest
+    container_name: nginx-container-app
+    restart: always
+    depends_on:
+      - spring-app-backend
+    ports:
+      - "8012:80"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/nginx.conf
+      - ./frontend/web:/usr/share/nginx/html
+    networks:
+      - app-network
+
+# 自定义网络配置
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+# 数据卷定义
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
