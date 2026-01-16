@@ -19,7 +19,8 @@ https://github.com/docker/compose/releases/download/v5.0.0/docker-compose-window
 <img src="images.png" />
 <br>
 <img src="container.png"/>
-### 5、常见问题
+
+## 5、常见问题
 1. 端口被占用，进入docker-compose.yml 里面修改端口
 
 2. 如果运行docker-compose up -d 启动失败，请查看docker-compose.yml 修改里面镜像地址或其它配置
